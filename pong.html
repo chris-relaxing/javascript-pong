@@ -1,0 +1,698 @@
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+</head>
+<body>
+
+<!-- Pong 1.0<br> -->
+
+<!-- Create an HTML canvas and assign it an id. -->
+<canvas id="gameCanvas" width="750" height="550"></canvas>
+
+<script>
+
+var canvas;
+var canvasContext;
+var canvas_width;
+var canvas_height;
+var GAME_COLOR = "black"; // default
+
+// offsets to account for the rounded corners
+var offsetA = 30;
+var offsetB = 60;
+
+// starting y position of the left paddle
+var paddle1Y = 100;
+var paddle2Y = 100;
+
+// defaults for paddle thickness and height
+const PADDLE_THICKNESS = 10;
+const PADDLE_HEIGHT = 70;
+
+// ball variables
+var ballX = offsetA;
+var ballY = 0;
+var ballSpeedX = 10;
+var ballSpeedY = 4;
+
+var player1Score = 0;
+var player2Score = 0;
+var WINNING_SCORE = 3; // default
+var showGameOverScreen = false;
+
+var startNewGame = false;
+var mouseClickX, mouseClickY;
+var mouseClicked = false;
+var box_1_selected = true; // default
+var box_2_selected = false;
+var box_3_selected = true; // default
+var box_4_selected = false;
+var box_5_selected = false;
+var box_6_selected = true; // default
+var box_7_selected = false;
+var box_8_selected = false;
+var linkText, linkText2;
+var link1, link2;
+var linkX2, linkY2;
+var mousePosition = {x:0, y:0}
+var mousePos;
+
+window.onload = function() {
+
+    canvas = document.getElementById("gameCanvas");
+    canvasContext = canvas.getContext("2d");
+    canvas_width = canvas.width;
+    canvas_height = canvas.height;
+
+    // game loop - begin ------------
+    var framesPerSecond = 30;
+    setInterval(
+        function() {
+
+            if (startNewGame == true) {
+                startGame();
+            } else if (showGameOverScreen) {
+                gameOverScreen();
+            } else {
+                titlePage();
+            }
+
+        }, 1000/framesPerSecond);
+    // game loop - end  ------------
+
+    canvas.addEventListener('mousedown',
+    function(evt) {
+        mousePos = calculateMousePos(evt);
+        mouseClickX = mousePos.x;
+        mouseClickY = mousePos.y;
+        // console.log(mousePos);
+        // console.log("mouseClickX: ", mouseClickX, "mouseClickY: ", mouseClickY);
+        mouseClicked = true;
+    });
+
+    canvas.addEventListener('mousemove',
+    	function(evt) {
+    		mousePosition = calculateMousePos(evt);
+    		paddle1Y = mousePosition.y - (PADDLE_HEIGHT/2);
+            // console.log("x: ", mousePosition.x, "y: ", mousePosition.y);
+    	});
+}
+
+function startGame() {
+    ballMovement();
+    drawComponents();
+}
+
+// Function to create rounded corners on the rectangle
+CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius, fill, stroke) {
+    // If stroke argument not provided, provide a stroke by default
+    if (typeof stroke == "undefined" ) {
+        stroke = true;
+    }
+    // If no radius is defined, then give it a default of 5
+    if (typeof radius === "undefined") {
+        radius = 5;
+    }
+
+    // Start of shape definition
+    this.beginPath();
+
+    this.moveTo(x + radius, y);
+    // Draw the top border line
+    this.lineTo(x + width - radius, y);
+
+    // Draw the top right curve
+    this.quadraticCurveTo(x + width, y, x + width, y + radius);
+
+    // Draw the right border line
+    this.lineTo(x + width, y + height - radius);
+
+    // Draw the bottom right curve
+    this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+
+    // Draw the bottom border line
+    this.lineTo(x + radius, y + height);
+
+    // Draw the bottom left curve
+    this.quadraticCurveTo(x, y + height, x, y + height - radius);
+
+    // Draw the left border line
+    this.lineTo(x, y + radius);
+
+    // Draw the final (top left) curve
+    this.quadraticCurveTo(x, y, x + radius, y);
+
+    // End of shape definition
+    this.closePath();
+
+    // Draw the shape with a line
+    if (stroke) {
+        this.stroke();
+    }
+    // Fill in the shape with color
+    if (fill) {
+        this.fill();
+    }
+}
+
+function isPointInsideRect(pointX, pointY, rectX, rectY, rectWidth, rectHeight) {
+    // returns true if point is inside rect
+    return  (rectX <= pointX) &&
+            (rectX + rectWidth >= pointX) &&
+            (rectY <= pointY) &&
+            (rectY + rectHeight >= pointY);
+}
+
+function calculateMousePos(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var root = document.documentElement;
+    var mouseX = evt.clientX - rect.left - root.scrollLeft;
+    var mouseY = evt.clientY - rect.top - root.scrollTop;
+    return {
+        x:mouseX,
+        y:mouseY
+    };
+}
+
+function ballMovement() {
+    if(showGameOverScreen) {
+        return;
+    }
+
+    computerPaddleAI();
+
+	ballX = ballX + ballSpeedX;
+	ballY = ballY + ballSpeedY;
+
+    // left wall
+    if(ballX < offsetA + PADDLE_THICKNESS) {
+
+        // Detect a hit. Check if the ball is between the top and bottom of the paddle
+    	if(ballY > paddle1Y && ballY < (paddle1Y + PADDLE_HEIGHT)) {
+            // console.log("HIT! Ball position: " + ballY)
+    		ballSpeedX = -ballSpeedX;
+
+            // change ball speed of Y to change the angle of return
+    		var deltaY = ballY - (paddle1Y + PADDLE_HEIGHT/2);
+    		ballSpeedY = deltaY * 0.35;
+
+    	} else if (ballX < offsetA) {
+            player2Score++; // must be BEFORE ballReset()
+            // console.log("Doh! Just added a player2Score!");
+            ballReset();
+        }
+
+	}
+    // right wall
+	if(ballX > canvas_width-40 - PADDLE_THICKNESS) {
+
+        // Detect a hit. If the ball is between the top and bottom of the paddle
+    	if(ballY > paddle2Y && ballY < (paddle2Y + PADDLE_HEIGHT)) {
+            // console.log("HIT! Ball position: " + ballY)
+    		ballSpeedX = -ballSpeedX;
+
+            // change ball speed of Y to change the angle of return
+    		var deltaY = ballY - (paddle2Y + PADDLE_HEIGHT/2 );
+    		ballSpeedY = deltaY * 0.35;
+    	} else if (ballX > canvas_width-40) {
+    		player1Score++; // must be BEFORE ballReset()
+            // console.log("Doh! Just added a player1Score!");
+    		ballReset();
+    	}
+
+	}
+    // top (ceiling)
+	if(ballY < 0) {
+        // bounce off by reversing course
+		ballSpeedY = -ballSpeedY;
+	}
+    // bottom (floor)
+	if(ballY > canvas_height-10) {
+        // bounce off by reversing course
+		ballSpeedY = -ballSpeedY;
+	}
+
+}
+
+function computerPaddleAI() {
+	var paddle2YCenter = paddle2Y + (PADDLE_HEIGHT/2);
+
+    var normal = 6;
+    var fast = 10; // just a little less than 2x
+    var crazy = 16;
+    var moveSpeed;
+
+    if (ballSpeedX == 20 ){
+        moveSpeed = fast;
+    } else if (ballSpeedX > 20 ){
+        moveSpeed = crazy;
+    } else {
+        moveSpeed = normal
+    }
+
+	if(paddle2YCenter < ballY - 35) {
+		paddle2Y = paddle2Y + moveSpeed;
+	} else if(paddle2YCenter > ballY + 35) {
+		paddle2Y = paddle2Y - moveSpeed;
+	}
+}
+
+function ballReset() {
+    // This function is called when a paddle misses a ball
+    // Each time that happens, check the score to see if the game is over
+	if(player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+		showGameOverScreen = true;
+	}
+    computerPaddleAI();
+
+	ballSpeedX = -ballSpeedX;
+	ballX = canvas_width/2;
+	ballY = canvas_height/2;
+
+}
+
+function drawScores() {
+    // Left side score - make room for more digits
+    canvasContext.font="40px monospace";
+    if (player1Score < 10) {
+        canvasContext.fillText(player1Score, (canvas_width/2)-60, 40);
+    } else if (player1Score > 99) {
+        canvasContext.fillText(player1Score, (canvas_width/2)-100, 40);
+    } else {
+        canvasContext.fillText(player1Score, (canvas_width/2)-80, 40);
+    }
+
+    // Right side score
+    canvasContext.fillText(player2Score, (canvas_width/2)+35, 40);
+}
+
+function drawComponents() {
+    // console.log("drawComponents()");
+
+    // this line blacks out the background to give the appearance of animation
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.roundRect(0, 0, canvas_width, canvas_height, 40, GAME_COLOR, 0);
+
+    if(showGameOverScreen) {
+        gameOverScreen();
+        return; // this means exit
+    }
+
+    // Left paddle
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillRect(offsetA, paddle1Y, PADDLE_THICKNESS, PADDLE_HEIGHT);
+
+    // Right paddle
+    canvasContext.fillStyle = 'white';
+    // canvasContext.fillRect(canvas_width-40, canvas_height-120, PADDLE_THICKNESS, PADDLE_HEIGHT);
+    canvasContext.fillRect(canvas_width-40, paddle2Y, PADDLE_THICKNESS, PADDLE_HEIGHT);
+
+    // Draw the ball
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillRect(ballX, ballY, 10, 10);
+
+    drawScores();
+    drawNet();
+}
+
+function drawNet() {
+    for(var i=0; i < canvas_height; i += 30) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(canvas_width/2, i, 2, 10, 'white');
+    }
+}
+
+function gameOverScreen() {
+
+    canvasContext.fillStyle = 'white';
+    drawScores();
+    drawNet();
+
+    if(player1Score >= WINNING_SCORE) {
+
+        canvasContext.font="54px monospace";
+        canvasContext.fillText("Winner", canvas_width/8, canvas_height/4);
+        canvasContext.font="44px monospace";
+        canvasContext.fillText("Left Player", canvas_width/12, canvas_height/3);
+        // canvasContext.fillText("Play Again", (canvas_width/10), (0 + canvas_height/2));
+        linkText = "begin game";
+        linkX = (canvas_width/10);
+        linkY = canvas_height/2;
+        boxY = (canvas_height/2)- 50;
+        var link1 = {x:65, y:235, width:280, height:60};
+        // canvasContext.fillStyle = 'gray';
+        // canvasContext.fillRect(link1.x, link1.y, link1.width, link1.height);
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillText("play again", linkX, linkY);
+
+
+        // options link
+        canvasContext.font="38px monospace";
+        // canvasContext.fillText("[settings]", canvas_width/8, canvas_height-70);
+        linkText2 = "[settings]";
+        linkX2 = canvas_width/8;
+        linkY2 = canvas_height-70;
+        var link2 = {x:90, y:445, width:235, height:55};
+        // canvasContext.fillStyle = 'gray';
+        // canvasContext.fillRect(link2.x, link2.y, link2.width, link2.height);
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillText(linkText2, linkX2, linkY2);
+
+
+    } else if(player2Score >= WINNING_SCORE) {
+        canvasContext.font="54px monospace";
+        canvasContext.fillText("Winner", (canvas_width/2 + canvas_width/8), (0 + canvas_height/4));
+        canvasContext.font="44px monospace";
+        canvasContext.fillText("Right Player", (canvas_width/2 + canvas_width/24), (0 + canvas_height/3));
+        // canvasContext.fillText("Play Again", (canvas_width/2 + canvas_width/12), (0 + canvas_height/2));
+
+        linkX = (canvas_width/2 + canvas_width/16);
+        linkY = canvas_height/2;
+        var link1 = {x:415, y:235, width:280, height:60};
+        // canvasContext.fillStyle = 'gray';
+        // canvasContext.fillRect(link1.x, link1.y, link1.width, link1.height);
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillText("play again", linkX, linkY);
+
+
+        // options link
+        canvasContext.font="38px monospace";
+
+        linkText2 = "[settings]";
+        linkX2 = (canvas_width/2 + canvas_width/12);
+        linkY2 = canvas_height-70;
+        var link2 = {x:435, y:445, width:235, height:55};
+        // canvasContext.fillStyle = 'gray';
+        // canvasContext.fillRect(link2.x, link2.y, link2.width, link2.height);
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillText(linkText2, linkX2, linkY2);
+
+    }
+    var x = mousePosition.x;
+    var y = mousePosition.y;
+
+    onlink2 = isPointInsideRect(x, y, link1.x, link1.y, link1.width, link1.height);
+    onlink3 = isPointInsideRect(x, y, link2.x, link2.y, link2.width, link2.height);
+    if (onlink2 == true || onlink3 == true) {
+        document.body.style.cursor = "pointer";
+    } else {
+        document.body.style.cursor = "";
+    }
+
+    if (mouseClicked) {
+        link1_clicked = isPointInsideRect(mouseClickX, mouseClickY, link1.x, link1.y, link1.width, link1.height);
+        if (link1_clicked == true) {
+            // console.log("link1 'play again' has been clicked.");
+            link1_selected = true;
+            link2_selected = false;
+            startNewGame = true;
+            player1Score = 0;
+            player2Score = 0;
+            showGameOverScreen = false;
+            document.body.style.cursor = "";
+            // canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+            startGame();
+        }
+
+        link2_clicked = isPointInsideRect(mouseClickX, mouseClickY, link2.x, link2.y, link2.width, link2.height);
+        if (link2_clicked == true) {
+            // console.log("link2 '[settings]' has been clicked.");
+            // console.log("currentScreen: ", currentScreen);
+            link1_selected = false;
+            link2_selected = true;
+            startNewGame = false;
+            player1Score = 0;
+            player2Score = 0;
+            showGameOverScreen = false;
+            box_1_selected = true;
+            mouseClicked = false;
+            titlePage();
+        }
+
+    }
+    // reset to false so that the mouse click only registers once in the game loop
+    mouseClicked = false;
+}
+
+function titlePage() {
+
+    if(showGameOverScreen) {
+        return;
+    }
+
+    // clear the game screen
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.roundRect(0, 0, canvas_width, canvas_height, 40, GAME_COLOR, 0);
+
+    // draw the pong title
+    canvasContext.fillStyle = 'white';
+    canvasContext.font="120px monospace";
+    canvasContext.fillText("pong", 230, 120);
+
+    //draw the begin game link
+    canvasContext.font="44px monospace";
+    linkText = "begin game";
+    linkX = 230;
+    linkY = 500;
+    var begin_game_link = {x:210, y:455, width:300, height:60};
+    // A gray box around the text link for debugging
+    // canvasContext.fillStyle = 'gray';
+    // canvasContext.fillRect(begin_game_link.x, begin_game_link.y, begin_game_link.width, begin_game_link.height);
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText(linkText, linkX, linkY);
+
+
+    // ---- Game options ----
+
+    // ----------------------- Score limit ----------------------- //
+    canvasContext.fillStyle = 'white';
+    canvasContext.font="20px monospace";
+    canvasContext.fillText("score limit", 100, 225);
+    var bt = 28; // distance text is to the right of the box
+
+    // box 1
+    var box1 = {x:100, y:240, width:20, height:20};
+    canvasContext.fillText("3", box1.x + bt, 257);
+    canvasContext.fillRect(box1.x, box1.y, box1.width, box1.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(102, 242, 16, 16);
+
+    if (box_1_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(104, 244, 12, 12);
+    }
+
+    // box 2
+    var box2 = {x:180, y:240, width:20, height:20};
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText("10", box2.x + bt, 257);
+    canvasContext.fillRect(box2.x, box2.y, box2.width, box2.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(182, 242, 16, 16);
+
+    // box 2 selected
+    if (box_2_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(184, 244, 12, 12);
+    }
+
+    // ----------------------- color options ----------------------- //
+    canvasContext.fillStyle = 'white';
+    canvasContext.font="20px monospace";
+    canvasContext.fillText("game color", 450, 225);
+
+    // box 3
+    var box3 = {x:450, y:240, width:20, height:20};
+    canvasContext.fillText("black & white", box3.x + bt, 257);
+    canvasContext.fillRect(box3.x, box3.y, box3.width, box3.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(452, 242, 16, 16);
+
+    if (box_3_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(454, 244, 12, 12);
+    }
+
+    // box 4
+    var box4 = {x:450, y:267, width:20, height:20};
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText("retro green", box4.x + bt, 282);
+    canvasContext.fillRect(box4.x, box4.y, box4.width, box4.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(452, 269, 16, 16);
+
+    // box 4 selected
+    if (box_4_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(454, 271, 12, 12);
+    }
+
+    // box 5
+    var box5 = {x:450, y:294, width:20, height:20};
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText("cool blue", box5.x + bt, 309);
+    canvasContext.fillRect(box5.x, box5.y, box5.width, box5.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(452, 296, 16, 16);
+
+    // box 5 selected
+    if (box_5_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(454, 298, 12, 12);
+    }
+
+    // ----------------------- ball speed ----------------------- //
+    canvasContext.fillStyle = 'white';
+    canvasContext.font="20px monospace";
+    canvasContext.fillText("ball speed", 100, 325);
+
+    // box 6
+    var box6 = {x:100, y:340, width:20, height:20};
+    canvasContext.fillText("normal", box6.x + bt, 355);
+    canvasContext.fillRect(box6.x, box6.y, box6.width, box6.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(102, 342, 16, 16);
+
+    if (box_6_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(104, 344, 12, 12);
+    }
+
+    // box 7
+    var box7 = {x:100, y:367, width:20, height:20};
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText("fast 2x", box7.x + bt, 382);
+    canvasContext.fillRect(box7.x, box7.y, box7.width, box7.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(102, 369, 16, 16);
+
+    // box 7 selected
+    if (box_7_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(104, 371, 12, 12);
+    }
+
+    // box 8
+    var box8 = {x:100, y:394, width:20, height:20};
+    canvasContext.fillStyle = 'white';
+    canvasContext.fillText("crazy 3x", box8.x + bt, 409);
+    canvasContext.fillRect(box8.x, box8.y, box8.width, box8.height);
+    canvasContext.fillStyle = GAME_COLOR;
+    canvasContext.fillRect(102, 396, 16, 16);
+
+    // box 7 selected
+    if (box_8_selected == true) {
+        canvasContext.fillStyle = 'white';
+        canvasContext.fillRect(104, 398, 12, 12);
+    }
+
+    // check to see if the mouse is over the begin game link
+    // if so, change the pointer to a hand, indicating a link
+    var x = mousePosition.x;
+    var y = mousePosition.y;
+
+    onlink1 = isPointInsideRect(x, y, begin_game_link.x, begin_game_link.y, begin_game_link.width, begin_game_link.height);
+    if (onlink1) {
+        document.body.style.cursor = "pointer";
+    } else {
+        document.body.style.cursor = "";
+    }
+
+    // handle the case of a mouse click
+    if (mouseClicked) {
+        // check to see if the mouse clicked box1
+        box_1_clicked = isPointInsideRect(mouseClickX, mouseClickY, box1.x, box1.y, box1.width, box1.height);
+        if (box_1_clicked == true) {
+            box_1_selected = true;
+            box_2_selected = false;
+            WINNING_SCORE = 3;
+        }
+        // check to see if the mouse clicked box 2
+        box_2_clicked = isPointInsideRect(mouseClickX, mouseClickY, box2.x, box2.y, box2.width, box2.height);
+        if (box_2_clicked == true) {
+            box_1_selected = false;
+            box_2_selected = true;
+            WINNING_SCORE = 10;
+        }
+
+        // check to see if the mouse clicked box 3
+        box_3_clicked = isPointInsideRect(mouseClickX, mouseClickY, box3.x, box3.y, box3.width, box3.height);
+        if (box_3_clicked == true) {
+            box_3_selected = true;
+            box_4_selected = false;
+            box_5_selected = false;
+            GAME_COLOR = "black";
+        }
+
+        // check to see if the mouse clicked box 4
+        box_4_clicked = isPointInsideRect(mouseClickX, mouseClickY, box4.x, box4.y, box4.width, box4.height);
+        if (box_4_clicked == true) {
+            box_3_selected = false;
+            box_4_selected = true;
+            box_5_selected = false;
+            GAME_COLOR = "#003300";
+        }
+
+        // check to see if the mouse clicked box 5
+        box_5_clicked = isPointInsideRect(mouseClickX, mouseClickY, box5.x, box5.y, box5.width, box5.height);
+        if (box_5_clicked == true) {
+            box_3_selected = false;
+            box_4_selected = false;
+            box_5_selected = true;
+            GAME_COLOR = "#004080";
+        }
+
+        // check to see if the mouse clicked box 6
+        box_6_clicked = isPointInsideRect(mouseClickX, mouseClickY, box6.x, box6.y, box6.width, box6.height);
+        if (box_6_clicked == true) {
+            box_6_selected = true;
+            box_7_selected = false;
+            box_8_selected = false;
+            ballSpeedX = 10;
+            ballSpeedY = 4;
+        }
+
+        // check to see if the mouse clicked box 7
+        box_7_clicked = isPointInsideRect(mouseClickX, mouseClickY, box7.x, box7.y, box7.width, box7.height);
+        if (box_7_clicked == true) {
+            box_6_selected = false;
+            box_7_selected = true;
+            box_8_selected = false;
+            ballSpeedX = 20;
+            ballSpeedY = 8;
+        }
+
+        // check to see if the mouse clicked box 8
+        box_8_clicked = isPointInsideRect(mouseClickX, mouseClickY, box8.x, box8.y, box8.width, box8.height);
+        if (box_8_clicked == true) {
+            box_6_selected = false;
+            box_7_selected = false;
+            box_8_selected = true;
+            ballSpeedX = 30;
+            ballSpeedY = 12;
+        }
+
+        // check to see if the mouse clicked the begin game link
+        begin_game_link_clicked = isPointInsideRect(mouseClickX, mouseClickY, begin_game_link.x, begin_game_link.y, begin_game_link.width, begin_game_link.height);
+        if (begin_game_link_clicked == true) {
+            box_1_selected = false;
+            box_2_selected = false;
+            startNewGame = true;
+            player1Score = 0;
+            player2Score = 0;
+            showGameOverScreen = false;
+            document.body.style.cursor = "";
+            startGame();
+        }
+
+    }
+    // reset to false so that the mouse click only registers once in the game loop
+    mouseClicked = false;
+
+}
+
+
+</script>
+
+</body>
+</html>
