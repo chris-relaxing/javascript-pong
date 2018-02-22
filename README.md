@@ -1,12 +1,12 @@
 # Pong!
-This is my first JavaScript web browser game. It utilizes the HTML canvas element. I used parts of a tutorial written by Chris DeLeon, but greatly expanded on his code example.
+This is my first JavaScript web browser game, which utilizes the HTML canvas element. I used parts of a tutorial written by Chris DeLeon, but greatly expanded on his code example.
 
 ![alt text](http://bluegalaxy.info/codewalk/wp-content/uploads/2018/01/pong_blue_title_screen-676x496.png)
 
 This game can be played on my website here:<BR>
 http://bluegalaxy.info/js/pong_pt7.html
 
-The code for this game can also be viewed on codepen:
+The code for this game can also be viewed on codepen:<BR>
 https://codepen.io/Chris_Nielsen/pen/EQZZoy
 
 
